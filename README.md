@@ -16,7 +16,7 @@ package main
 import (
 	"github.com/go-redis/redis"
 	oredis "gopkg.in/go-oauth2/redis.v3"
-	"gopkg.in/oauth2.v3/manage"
+	"gopkg.in/hellish/oauth2.v3/manage"
 )
 
 func main() {

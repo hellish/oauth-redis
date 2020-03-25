@@ -2,13 +2,13 @@ package redis
 
 import (
 	"fmt"
+	"github.com/hellish/oauth2"
+	"github.com/hellish/oauth2/models"
+	"github.com/hellish/oauth2/utils/uuid"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v7"
 	jsoniter "github.com/json-iterator/go"
-	"gopkg.in/oauth2.v3"
-	"gopkg.in/oauth2.v3/models"
-	"gopkg.in/oauth2.v3/utils/uuid"
 )
 
 var (

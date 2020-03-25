@@ -1,11 +1,11 @@
 package redis
 
 import (
+	"github.com/hellish/oauth2/models"
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis"
-	"gopkg.in/oauth2.v3/models"
+	"github.com/go-redis/redis/v7"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
