@@ -1,4 +1,4 @@
-module gopkg.in/go-oauth2/redis
+module github.com/hellish/oauth-redis
 
 go 1.14
 

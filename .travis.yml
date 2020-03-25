@@ -1,8 +1,8 @@
 language: go
 sudo: false
-go_import_path: gopkg.in/go-oauth2/redis.v3
+go_import_path: github.com/hellish/oauth-redis
 go:
-  - 1.9
+  - 1.14
 services:
   - redis-server
 before_install:
