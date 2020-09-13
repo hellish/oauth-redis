@@ -2,12 +2,12 @@ package redis
 
 import (
 	"fmt"
-	"github.com/hellish/oauth2"
-	"github.com/hellish/oauth2/models"
-	"github.com/hellish/oauth2/utils/uuid"
+	"lavva/oauth2"
+	"lavva/oauth2/models"
+	"lavva/oauth2/utils/uuid"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/go-redis/redis"
 	jsoniter "github.com/json-iterator/go"
 )
 

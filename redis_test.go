@@ -1,11 +1,11 @@
 package redis
 
 import (
-	"github.com/hellish/oauth2/models"
+	"lavva/oauth2/models"
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v7"
+	"github.com/go-redis/redis"
 
 	. "github.com/smartystreets/goconvey/convey"
 )
