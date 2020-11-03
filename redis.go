@@ -69,6 +69,12 @@ type clienter interface {
 type TokenStore struct {
 	cli clienter
 	ns  string
+	getAccessExpiresIn func(info oauth2.TokenInfo) time.Duration
+}
+
+// SetGetAccessExpiresIn
+func (s *TokenStore) SetGetAccessExpiresInHandler(fn func (info oauth2.TokenInfo) time.Duration) {
+	s.getAccessExpiresIn = fn
 }
 
 // Close close the store
@@ -186,6 +192,11 @@ func (s *TokenStore) Create(info oauth2.TokenInfo) error {
 	} else {
 		basicID := uuid.Must(uuid.NewRandom()).String()
 		aexp := info.GetAccessExpiresIn()
+
+		if s.getAccessExpiresIn != nil {
+			aexp = s.getAccessExpiresIn(info)
+		}
+
 		rexp := aexp
 
 		if refresh := info.GetRefresh(); refresh != "" {
