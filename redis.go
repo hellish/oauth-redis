@@ -1,13 +1,14 @@
 package redis
 
 import (
+	"context"
 	"fmt"
 	"lavva/oauth2"
 	"lavva/oauth2/models"
 	"lavva/oauth2/utils/uuid"
 	"time"
 
-	"github.com/go-redis/redis"
+	"github.com/go-redis/redis/v8"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -22,6 +23,7 @@ func NewRedisStore(opts *redis.Options, keyNamespace ...string) *TokenStore {
 	if opts == nil {
 		panic("options cannot be nil")
 	}
+
 	return NewRedisStoreWithCli(redis.NewClient(opts), keyNamespace...)
 }
 
@@ -34,6 +36,7 @@ func NewRedisStoreWithCli(cli *redis.Client, keyNamespace ...string) *TokenStore
 	if len(keyNamespace) > 0 {
 		store.ns = keyNamespace[0]
 	}
+
 	return store
 }
 
@@ -42,6 +45,7 @@ func NewRedisClusterStore(opts *redis.ClusterOptions, keyNamespace ...string) *T
 	if opts == nil {
 		panic("options cannot be nil")
 	}
+
 	return NewRedisClusterStoreWithCli(redis.NewClusterClient(opts), keyNamespace...)
 }
 
@@ -54,26 +58,27 @@ func NewRedisClusterStoreWithCli(cli *redis.ClusterClient, keyNamespace ...strin
 	if len(keyNamespace) > 0 {
 		store.ns = keyNamespace[0]
 	}
+
 	return store
 }
 
 type clienter interface {
-	Get(key string) *redis.StringCmd
-	Exists(key ...string) *redis.IntCmd
+	Get(ctx context.Context, key string) *redis.StringCmd
+	Exists(ctx context.Context, key ...string) *redis.IntCmd
 	TxPipeline() redis.Pipeliner
-	Del(keys ...string) *redis.IntCmd
+	Del(ctx context.Context, keys ...string) *redis.IntCmd
 	Close() error
 }
 
 // TokenStore redis token store
 type TokenStore struct {
-	cli clienter
-	ns  string
+	cli                clienter
+	ns                 string
 	getAccessExpiresIn func(info oauth2.TokenInfo) time.Duration
 }
 
-// SetGetAccessExpiresIn
-func (s *TokenStore) SetGetAccessExpiresInHandler(fn func (info oauth2.TokenInfo) time.Duration) {
+// SetGetAccessExpiresInHandler
+func (s *TokenStore) SetGetAccessExpiresInHandler(fn func(info oauth2.TokenInfo) time.Duration) {
 	s.getAccessExpiresIn = fn
 }
 
@@ -82,10 +87,12 @@ func (s *TokenStore) Close() error {
 	return s.cli.Close()
 }
 
+// wrapperKey
 func (s *TokenStore) wrapperKey(key string) string {
 	return fmt.Sprintf("%s%s", s.ns, key)
 }
 
+// checkError
 func (s *TokenStore) checkError(result redis.Cmder) (bool, error) {
 	if err := result.Err(); err != nil {
 		if err == redis.Nil {
@@ -98,11 +105,12 @@ func (s *TokenStore) checkError(result redis.Cmder) (bool, error) {
 
 // remove
 func (s *TokenStore) remove(key string) error {
-	result := s.cli.Del(s.wrapperKey(key))
+	result := s.cli.Del(context.Background(), s.wrapperKey(key))
 	_, err := s.checkError(result)
 	return err
 }
 
+// removeToken
 func (s *TokenStore) removeToken(tokenString string, isRefresh bool) error {
 	basicID, err := s.getBasicID(tokenString)
 	if err != nil {
@@ -127,7 +135,7 @@ func (s *TokenStore) removeToken(tokenString string, isRefresh bool) error {
 	if isRefresh {
 		checkToken = token.GetAccess()
 	}
-	iresult := s.cli.Exists(s.wrapperKey(checkToken))
+	iresult := s.cli.Exists(context.Background(), s.wrapperKey(checkToken))
 	if err := iresult.Err(); err != nil && err != redis.Nil {
 		return err
 	} else if iresult.Val() == 0 {
@@ -137,6 +145,7 @@ func (s *TokenStore) removeToken(tokenString string, isRefresh bool) error {
 	return nil
 }
 
+// parseToken
 func (s *TokenStore) parseToken(result *redis.StringCmd) (oauth2.TokenInfo, error) {
 	if ok, err := s.checkError(result); err != nil {
 		return nil, err
@@ -159,11 +168,13 @@ func (s *TokenStore) parseToken(result *redis.StringCmd) (oauth2.TokenInfo, erro
 	return &token, nil
 }
 
+// getToken
 func (s *TokenStore) getToken(key string) (oauth2.TokenInfo, error) {
-	result := s.cli.Get(s.wrapperKey(key))
+	result := s.cli.Get(context.Background(), s.wrapperKey(key))
 	return s.parseToken(result)
 }
 
+// parseBasicID
 func (s *TokenStore) parseBasicID(result *redis.StringCmd) (string, error) {
 	if ok, err := s.checkError(result); err != nil {
 		return "", err
@@ -173,8 +184,9 @@ func (s *TokenStore) parseBasicID(result *redis.StringCmd) (string, error) {
 	return result.Val(), nil
 }
 
+// getBasicID
 func (s *TokenStore) getBasicID(token string) (string, error) {
-	result := s.cli.Get(s.wrapperKey(token))
+	result := s.cli.Get(context.Background(), s.wrapperKey(token))
 	return s.parseBasicID(result)
 }
 
@@ -186,9 +198,11 @@ func (s *TokenStore) Create(info oauth2.TokenInfo) error {
 		return err
 	}
 
+	ctx := context.Background()
+
 	pipe := s.cli.TxPipeline()
 	if code := info.GetCode(); code != "" {
-		pipe.Set(s.wrapperKey(code), jv, info.GetCodeExpiresIn())
+		pipe.Set(ctx, s.wrapperKey(code), jv, info.GetCodeExpiresIn())
 	} else {
 		basicID := uuid.Must(uuid.NewRandom()).String()
 		aexp := info.GetAccessExpiresIn()
@@ -204,16 +218,17 @@ func (s *TokenStore) Create(info oauth2.TokenInfo) error {
 			if aexp.Seconds() > rexp.Seconds() {
 				aexp = rexp
 			}
-			pipe.Set(s.wrapperKey(refresh), basicID, rexp)
+			pipe.Set(ctx, s.wrapperKey(refresh), basicID, rexp)
 		}
 
-		pipe.Set(s.wrapperKey(info.GetAccess()), basicID, aexp)
-		pipe.Set(s.wrapperKey(basicID), jv, rexp)
+		pipe.Set(ctx, s.wrapperKey(info.GetAccess()), basicID, aexp)
+		pipe.Set(ctx, s.wrapperKey(basicID), jv, rexp)
 	}
 
-	if _, err := pipe.Exec(); err != nil {
+	if _, err := pipe.Exec(ctx); err != nil {
 		return err
 	}
+
 	return nil
 }
 
